@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diatom Guy</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    background: #000 url("assets/inside-scene.jpg") center / cover no-repeat;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #stage.scene2 { background: #000; }
+
+  img {
+    position: absolute;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  .hidden { display: none; }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-2vh); }
+  }
+  .bobbing { animation: bob 1.4s ease-in-out infinite; }
+
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0) rotate(0); }
+    20% { transform: translate(-0.4vh, 0.2vh) rotate(-0.4deg); }
+    40% { transform: translate(0.4vh, -0.2vh) rotate(0.4deg); }
+    60% { transform: translate(-0.3vh, -0.2vh) rotate(-0.3deg); }
+    80% { transform: translate(0.3vh, 0.2vh) rotate(0.3deg); }
+  }
+  .shaking { animation: shake 0.12s linear infinite; }
+  .driving-off {
+    transition: transform 1.6s ease-in;
+    transform: translateX(110vw);
+  }
+
+  /* Scene 1 */
+  #guy {
+    left: 4vw;
+    bottom: 4vh;
+    height: 60vh;
+  }
+  #guy.dragging { cursor: grabbing; z-index: 10; }
+  #guy.draggable { cursor: grab; touch-action: none; }
+  #hat {
+    /* Centred above the guy: the hat canvas is the same size as the guy's,
+       so 60% of its height keeps it in proportion. */
+    left: calc(4vw + 60vh * 1423 / 1387 / 2 - 18vh);
+    bottom: calc(4vh + 60vh - 9vh);
+    height: 36vh;
+    cursor: pointer;
+  }
+  #door {
+    right: 8vw;
+    bottom: 4vh;
+    height: 62vh;
+  }
+
+  /* Scene 2 */
+  #house {
+    left: 3vw;
+    bottom: 6vh;
+    height: 85vh;
+  }
+  #guy2 {
+    left: calc(3vw + 85vh * 771 / 1488 / 2 - 15vh);
+    bottom: 2vh;
+    height: 30vh;
+  }
+  #car {
+    left: 50%;
+    bottom: 0;
+    width: min(60vw, 90vh);
+    margin-left: calc(min(60vw, 90vh) / -2);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- Scene 1 -->
+  <img id="guy" src="assets/diatom-guy.png" alt="Diatom guy">
+  <img id="hat" class="bobbing" src="assets/hat.png" alt="Hat">
+  <img id="door" class="hidden" src="assets/door.png" alt="Door">
+
+  <!-- Scene 2 -->
+  <img id="house" class="hidden" src="assets/house.png" alt="House">
+  <img id="guy2" class="hidden" src="assets/diatom-guy-with-hat.png" alt="Diatom guy with hat">
+  <img id="car" class="hidden" src="assets/car.png" alt="Car">
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const stage = $("stage");
+  const guy = $("guy");
+  const hat = $("hat");
+  const door = $("door");
+
+  // Preload swapped-in images so the swaps don't flash.
+  ["diatom-guy-with-hat.png", "car-with-driver.png"].forEach((f) => {
+    new Image().src = "assets/" + f;
+  });
+
+  // ---- Scene 1 ----
+  hat.addEventListener("click", () => {
+    guy.src = "assets/diatom-guy-with-hat.png";
+    hat.classList.add("hidden");
+    door.classList.remove("hidden");
+    guy.classList.add("bobbing", "draggable");
+    enableDrag();
+  });
+
+  function enableDrag() {
+    let start = null;
+
+    guy.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      guy.setPointerCapture(e.pointerId);
+      start = { x: e.clientX, y: e.clientY };
+      guy.classList.remove("bobbing");
+      guy.classList.add("dragging");
+    });
+
+    guy.addEventListener("pointermove", (e) => {
+      if (!start) return;
+      guy.style.transform =
+        `translate(${e.clientX - start.x}px, ${e.clientY - start.y}px)`;
+    });
+
+    const drop = () => {
+      if (!start) return;
+      start = null;
+      guy.classList.remove("dragging");
+      if (centreInside(guy, door)) {
+        startScene2();
+      } else {
+        guy.style.transform = "";
+        guy.classList.add("bobbing");
+      }
+    };
+    guy.addEventListener("pointerup", drop);
+    guy.addEventListener("pointercancel", drop);
+  }
+
+  function centreInside(a, b) {
+    const ra = a.getBoundingClientRect();
+    const rb = b.getBoundingClientRect();
+    const cx = ra.left + ra.width / 2;
+    const cy = ra.top + ra.height / 2;
+    return cx >= rb.left && cx <= rb.right && cy >= rb.top && cy <= rb.bottom;
+  }
+
+  // ---- Scene 2 ----
+  function startScene2() {
+    [guy, hat, door].forEach((el) => el.remove());
+    stage.classList.add("scene2");
+    ["house", "guy2", "car"].forEach((id) => $(id).classList.remove("hidden"));
+  }
+
+  const car = $("car");
+  car.addEventListener("click", () => {
+    if (car.dataset.driving) return;
+    car.dataset.driving = "1";
+    $("guy2").classList.add("hidden");
+    car.src = "assets/car-with-driver.png";
+    car.classList.add("shaking");
+
+    setTimeout(() => {
+      car.classList.remove("shaking");
+      car.style.cursor = "default";
+      // Force a reflow so the transition starts from the resting position.
+      void car.offsetWidth;
+      car.classList.add("driving-off");
+    }, 1000);
+  });
+</script>
+</body>
+</html>
